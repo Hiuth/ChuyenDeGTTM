@@ -1,0 +1,4 @@
+train: ./vehicle_dataset/train/images/  # Đường dẫn đến ảnh train
+val: ./vehicle_dataset/valid/images/      # Đường dẫn đến ảnh validation
+nc: 6  # Số lượng lớp (ví dụ: xe hơi, xe máy, xe tải)
+names: ["car","threeweel","bus","truck","motorbike","van"]
