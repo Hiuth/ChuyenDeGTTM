@@ -1,0 +1,6 @@
+- hệ thống sử dụng model AI yolov8 trên phiên bản 8.2.0, phiên bản python 3.11. 
+- Vui lòng cài đặt đúng phiên bảng để có thể chạy được hệ thống.
+- Nếu đã tải phiên bản ultralytics cao hơn 8.2.0 thì vui lòng gỡ cài đặt và cài lại bản 8.2.0.
+- Nếu chưa có thì đây là lệnh tải: 
+    pip install ultralytics==8.2.0
+    
