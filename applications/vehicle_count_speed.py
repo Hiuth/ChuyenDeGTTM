@@ -11,6 +11,14 @@ import warnings
 # Tắt cảnh báo FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# Thêm hàm chuyển đổi từ pixel sang mét dựa trên vị trí y
+def pixel_to_meter_at_y(y_position, frame_height, real_distance_m, pixel_distance):
+    # Giả sử vạch dưới (gần camera nhất) có tỷ lệ chuẩn
+    base_ratio = real_distance_m / pixel_distance
+    # Hệ số điều chỉnh tăng dần khi y giảm (xa camera)
+    perspective_factor = 1 + ((frame_height - y_position) / frame_height) * 1.5
+    return base_ratio * perspective_factor
+
 def vehicle_count_and_speed(
     weights='runs/detect/train23/weights/best.pt',
     video_path='path/to/your/video.mp4',
@@ -49,8 +57,8 @@ def vehicle_count_and_speed(
 
     # Định nghĩa hai vạch ngang tạo vùng đo tốc độ
     if line_points is None:
-        line_top = [(0, 200), (w, 200)]    # Vạch trên
-        line_bottom = [(0, h - 50), (w, h - 50)]  # Vạch dưới gần mép
+        line_top = [(0, 400), (w, 400)]    # Vạch trên
+        line_bottom = [(0, h - 150), (w, h - 150)]  # Vạch dưới gần mép
 
     # Khởi tạo SpeedEstimator với vạch trên
     speed_estimator = speed_estimation.SpeedEstimator()
@@ -68,6 +76,10 @@ def vehicle_count_and_speed(
     speed_status = {}   # Theo dõi trạng thái đo tốc độ
     entry_times = {}    # Lưu thời gian xe đi vào vùng
     entry_positions = {} # Lưu vị trí x khi đi vào vùng
+    speed_history = {}  # Lưu lịch sử tốc độ
+    filtered_speeds = {}  # Lưu tốc độ đã được lọc
+    SMOOTH_FACTOR = 8    # Tăng số mẫu để làm mịn
+    ALPHA = 0.2         # Hệ số làm mịn (0.1-0.3 cho độ trễ cao)
 
     # Cải thiện tính toán khoảng cách thực tế
     real_distance_m = 50.0  # Khoảng cách thực tế giữa hai vạch (từ y=200 đến y=h-50, với h=768)
@@ -110,7 +122,7 @@ def vehicle_count_and_speed(
                 cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, line_thickness)
 
                 # Tính tốc độ
-                frame = speed_estimator.estimate_speed(frame, tracks)
+                #frame = speed_estimator.estimate_speed(frame, tracks)
 
                 # Lấy trung điểm hiện tại
                 center_x = (x1 + x2) // 2
@@ -158,14 +170,40 @@ def vehicle_count_and_speed(
                         time_diff_sec = exit_time - entry_time
                         dist_pixel = abs(center_x - entry_positions[track_id])  # Khoảng cách pixel theo x
                         speed_pixel_per_sec = dist_pixel / time_diff_sec if time_diff_sec > 0 else 0
-                        speed_m_per_sec = speed_pixel_per_sec * pixel_to_meter
+                        current_pixel_to_meter = pixel_to_meter_at_y(
+                            center_y, 
+                            h, 
+                            real_distance_m, 
+                            pixel_distance
+                        )
+                        speed_m_per_sec = speed_pixel_per_sec * current_pixel_to_meter
                         speed_km_h = speed_m_per_sec * 3.6 if speed_m_per_sec > 0 else 0
 
-                        # Hiển thị tốc độ trên bounding box khi trong vùng, màu đỏ
+                        # Thêm logic làm mịn tốc độ
+                        if track_id not in speed_history:
+                            speed_history[track_id] = []
+                            filtered_speeds[track_id] = 0  # Khởi tạo tốc độ lọc
+
+                        speed_history[track_id].append(speed_km_h)
+                        if len(speed_history[track_id]) > SMOOTH_FACTOR:
+                            speed_history[track_id].pop(0)
+
+                        # Tính trung bình tốc độ
+                        current_avg = sum(speed_history[track_id]) / len(speed_history[track_id])
+
+                        # Áp dụng bộ lọc chuyển đổi mượt
+                        if track_id not in filtered_speeds:
+                            filtered_speeds[track_id] = current_avg
+                        else:
+                            filtered_speeds[track_id] = (ALPHA * current_avg + 
+                                                       (1 - ALPHA) * filtered_speeds[track_id])
+
+                        # Hiển thị tốc độ đã được lọc
                         if region_top_y < center_y < region_bottom_y:
-                            cv2.putText(frame, f"{speed_km_h:.1f} km/h", (x1, y1 - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)  # Màu đỏ
-                            print(f"Track ID {track_id} - {class_name}: {speed_km_h:.2f} km/h")
+                            cv2.putText(frame, f"{filtered_speeds[track_id]:.1f} km/h", 
+                                        (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 
+                                        1.0, (255, 255, 255), 4)
+                            print(f"Track ID {track_id} - {class_name}: {filtered_speeds[track_id]:.2f} km/h")
                     entry_times[track_id] = None  # Đặt lại sau khi ra khỏi vùng
 
                 prev_positions[track_id] = (center_x, center_y)
@@ -186,7 +224,7 @@ def vehicle_count_and_speed(
 
 if __name__ == '__main__':
     vehicle_count_and_speed(
-        video_path='C:/Users/hiuth/Downloads/traffic_video.avi',
+        video_path='traffic_video.avi',
         line_color=(0, 0, 255),
         box_color=(0, 255, 0)
     )
