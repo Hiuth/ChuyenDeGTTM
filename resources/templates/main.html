@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hệ thống phân tích giao thông</title>
+    <link rel="stylesheet" href="../static/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container header-content">
+        <div class="logo">HỆ THỐNG PHÂN TÍCH GIAO THÔNG TỪ VIDEO</div>
+        <div class="user-info">
+          <div class="user-avatar">A</div>
+          <div>Admin</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="upload-section">
+        <div class="upload-info">
+          <h3>Nạp video phân tích</h3>
+          <p>Hỗ trợ định dạng: MP4, AVI, MOV (tối đa 500MB)</p>
+        </div>
+        <div class="upload-actions">
+          <input
+            type="file"
+            id="video-upload"
+            accept="video/*"
+            class="file-input"
+          />
+          <label for="video-upload" class="upload-button"
+            >Chọn file video</label
+          >
+           <!-- <button class="process-button" disabled>Xử lý video</button>-->
+        </div>
+      </div>
+
+      <div class="alert">
+        <div>⚠️ Cảnh báo: Hệ thống đang trong giai đoạn thử nghiệm</div>
+        <button class="alert-button">Xem chi tiết</button>
+      </div>
+
+      <div class="dashboard">
+        <div class="video-container">
+          <div class="video-player">
+            <video id="traffic-video" controls>
+              <source src="" type="video/mp4" />
+              Trình duyệt của bạn không hỗ trợ thẻ video.
+            </video>
+            <div class="video-placeholder">
+              TẢI LÊN VIDEO GIAO THÔNG ĐỂ PHÂN TÍCH
+            </div>
+          </div>
+          <div class="video-controls">
+            <div class="video-progress">
+              <span class="progress-text">Trạng thái xử lý: </span>
+              <span class="progress-status">Chưa có video</span>
+            </div>
+            <div class="video-info">
+              <span class="status-indicator offline"></span>
+              <span id="video-status">Chưa tải video</span>
+            </div>
+            <button class="control-button" disabled>Phân tích video</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div>Thống kê kết quả</div>
+            <div>📊</div>
+          </div>
+          <div class="card-content">
+            <div>Tổng số xe đã đếm</div>
+            <div class="big-number" id="total-vehicles">--</div>
+            <div class="card-footer">
+              <span
+                >Trạng thái:
+                <span id="analysis-status">Chưa phân tích</span></span
+              >
+              <span>Cập nhật: --:--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div>Phân loại phương tiện</div>
+            <div>🚗</div>
+          </div>
+          <div class="card-content">
+            <div>Xe máy: -- (--%)</div>
+            <div>Ô tô: -- (--%)</div>
+            <div>Xe tải: -- (--%)</div>
+            <div>Xe buýt: -- (--%)</div>
+            <div class="card-footer">
+              <span>Trạng thái: Chưa phân tích</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div>Lưu lượng trung bình</div>
+            <div>🚦</div>
+          </div>
+          <div class="card-content">
+            <div>Xe/giờ</div>
+            <div class="big-number" id="current-flow">--</div>
+            <div class="card-footer">
+              <span>Thời lượng video: --:--</span>
+              <span>Trạng thái: Chưa phân tích</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div>Tốc độ trung bình</div>
+            <div>⏱️</div>
+          </div>
+          <div class="card-content">
+            <div>km/h</div>
+            <div class="big-number" id="avg-speed">--</div>
+            <div class="card-footer">
+              <span>Khoảng thời gian: Toàn video</span>
+              <span>Trạng thái: Chưa phân tích</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div>Mật độ giao thông</div>
+            <div>🔍</div>
+          </div>
+          <div class="card-content">
+            <div>Đánh giá</div>
+            <div class="big-number" style="color: #7f8c8d">--</div>
+            <div class="card-footer">
+              <span>Thời điểm cao nhất: --:--</span>
+              <span>Trạng thái: Chưa phân tích</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    
+            <!-- Video đã phân tích sẽ hiển thị ở đây -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>

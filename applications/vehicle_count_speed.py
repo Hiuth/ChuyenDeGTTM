@@ -224,7 +224,7 @@ def vehicle_count_and_speed(
 
 if __name__ == '__main__':
     vehicle_count_and_speed(
-        video_path='traffic_video.avi',
+        video_path='test.mp4',
         line_color=(0, 0, 255),
         box_color=(0, 255, 0)
     )

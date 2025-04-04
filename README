@@ -3,4 +3,9 @@
 - Nếu đã tải phiên bản ultralytics cao hơn 8.2.0 thì vui lòng gỡ cài đặt và cài lại bản 8.2.0.
 - Nếu chưa có thì đây là lệnh tải: 
     pip install ultralytics==8.2.0
+- Nếu chưa có thư viện cho việc kết nối py với mysql thì:
+    pip install mysql-connector-python
+- Nếu chưa có thư viện cho việc kết nối py với opencv thì:
+    pip install opencv-python       
+
     
