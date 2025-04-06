@@ -1,230 +1,184 @@
-# /ultralytics/applications/vehicle_count_and_speed.py
-
+# vehicle_count_and_speed.py
 import cv2
 from ultralytics import YOLO
-from ultralytics.solutions import speed_estimation
 import numpy as np
-import time
 import os
-import warnings
+import uuid
+from datetime import datetime
+from database import get_video_path
 
-# Tắt cảnh báo FutureWarning
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-# Thêm hàm chuyển đổi từ pixel sang mét dựa trên vị trí y
 def pixel_to_meter_at_y(y_position, frame_height, real_distance_m, pixel_distance):
-    # Giả sử vạch dưới (gần camera nhất) có tỷ lệ chuẩn
     base_ratio = real_distance_m / pixel_distance
-    # Hệ số điều chỉnh tăng dần khi y giảm (xa camera)
     perspective_factor = 1 + ((frame_height - y_position) / frame_height) * 1.5
     return base_ratio * perspective_factor
 
+def generate_output_filename(input_filename):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = str(uuid.uuid4())[:8]
+    extension = os.path.splitext(input_filename)[1]
+    return f"processed_video_{timestamp}_{unique_id}{extension}"
+
 def vehicle_count_and_speed(
-    weights='runs/detect/train23/weights/best.pt',
-    video_path='path/to/your/video.mp4',
-    output_video_path='vehicle_count_speed_output16.mp4',
-    line_points=None,
+    input_filename,
+    output_dir="uploads/videos",
     conf=0.5,
     max_det=200,
     device=0,
-    line_color=(0, 0, 255),  # Màu xanh dương
-    box_color=(0, 255, 0),   # Màu xanh lá
-    line_thickness=2
+    line_color=(0, 0, 255),
+    box_color=(0, 255, 0)
 ):
-    # Kiểm tra đường dẫn weights
-    if not os.path.exists(weights):
-        raise FileNotFoundError(f"File mô hình không tồn tại tại: {weights}")
-
-    # Kiểm tra đường dẫn video
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(f"File video không tồn tại tại: {video_path}")
+    # Lấy đường dẫn video từ MySQL
+    video_path = get_video_path(input_filename)
+    if not video_path or not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video not found at: {video_path}")
 
     # Tải mô hình YOLO
-    model = YOLO(weights)
+    model = YOLO('runs/detect/train23/weights/best.pt')  # Thay bằng đường dẫn mô hình của bạn
     cap = cv2.VideoCapture(video_path)
-    
+
     if not cap.isOpened():
-        raise ValueError(f"Không thể mở file video tại: {video_path}")
+        raise ValueError(f"Cannot open video at: {video_path}")
 
     w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT, cv2.CAP_PROP_FPS))
     if w == 0 or h == 0 or fps == 0:
         cap.release()
-        raise ValueError("Không thể lấy thông tin video (width, height, hoặc FPS). Video có thể bị hỏng.")
+        raise ValueError("Invalid video info (width, height, or FPS).")
 
-    print(f"Thông tin video: width={w}, height={h}, fps={fps}")
+    # Tạo video output
+    output_filename = generate_output_filename(input_filename)
+    output_path = os.path.join(output_dir, output_filename)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video_writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
 
-    video_writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    # Vùng đo tốc độ
+    line_top = [(0, int(h * 0.5)), (w, int(h * 0.5))]
+    line_bottom = [(0, int(h * 0.8)), (w, int(h * 0.8))]
+    real_distance_m = 50.0  # Khoảng cách thực tế giữa hai vạch (m)
+    pixel_distance = line_bottom[0][1] - line_top[0][1]
 
-    # Định nghĩa hai vạch ngang tạo vùng đo tốc độ
-    if line_points is None:
-        line_top = [(0, 400), (w, 400)]    # Vạch trên
-        line_bottom = [(0, h - 150), (w, h - 150)]  # Vạch dưới gần mép
-
-    # Khởi tạo SpeedEstimator với vạch trên
-    speed_estimator = speed_estimation.SpeedEstimator()
-    speed_estimator.set_args(
-        reg_pts=line_top,  # Sử dụng vạch trên làm vạch chính
-        names=model.names,
-        view_img=False,
-        line_thickness=line_thickness
-    )
-
+    # Biến theo dõi
     frame_count = 0
-    class_counts = {}  # Đếm tổng số xe
-    tracked_status = {}  # Theo dõi trạng thái của mỗi track_id
-    prev_positions = {}  # Lưu vị trí trung điểm trước đó
-    speed_status = {}   # Theo dõi trạng thái đo tốc độ
-    entry_times = {}    # Lưu thời gian xe đi vào vùng
-    entry_positions = {} # Lưu vị trí x khi đi vào vùng
-    speed_history = {}  # Lưu lịch sử tốc độ
-    filtered_speeds = {}  # Lưu tốc độ đã được lọc
-    SMOOTH_FACTOR = 8    # Tăng số mẫu để làm mịn
-    ALPHA = 0.2         # Hệ số làm mịn (0.1-0.3 cho độ trễ cao)
-
-    # Cải thiện tính toán khoảng cách thực tế
-    real_distance_m = 50.0  # Khoảng cách thực tế giữa hai vạch (từ y=200 đến y=h-50, với h=768)
-    pixel_distance = h - 50 - 200  # Khoảng cách pixel giữa hai vạch
-    pixel_to_meter = real_distance_m / pixel_distance if pixel_distance > 0 else 1  
+    class_counts = {}  # Lưu số lượng từng loại xe theo track_id
+    tracked_status = {}  # Trạng thái đã đếm của mỗi track_id
+    prev_positions = {}  # Vị trí trước đó
+    entry_times = {}     # Thời gian vào vùng
+    entry_positions = {} # Vị trí x vào vùng
+    speed_history = {}   # Lịch sử tốc độ
+    filtered_speeds = {} # Tốc độ đã làm mịn
+    SMOOTH_FACTOR = 8
+    ALPHA = 0.2
 
     while cap.isOpened():
         success, frame = cap.read()
         if not success:
-            print("Đã xử lý xong video hoặc khung hình trống.")
             break
-
-        if frame is None or not isinstance(frame, np.ndarray):
-            print(f"Khung hình không hợp lệ tại frame {frame_count}: {frame}")
-            continue
-
-        frame = np.asarray(frame, dtype=np.uint8)
-        if frame.size == 0:
-            print(f"Khung hình rỗng tại frame {frame_count}")
-            continue
 
         frame_count += 1
         timestamp = frame_count / fps
 
-        # Vẽ hai vạch ngang tạo vùng đo tốc độ
-        cv2.line(frame, line_top[0], line_top[1], line_color, line_thickness)      # Vạch trên
-        cv2.line(frame, line_bottom[0], line_bottom[1], (255, 0, 0), line_thickness)  # Vạch dưới
+        # Vẽ vạch
+        cv2.line(frame, line_top[0], line_top[1], line_color, 2)
+        cv2.line(frame, line_bottom[0], line_bottom[1], (255, 0, 0), 2)
 
-        # Theo dõi phương tiện, chỉ với lớp 0, 1, 2
-        tracks = model.track(frame, persist=True, conf=conf, device=device, classes=[0, 1, 2], max_det=max_det)
-
-        if tracks[0].boxes is not None and len(tracks[0].boxes) > 0 and tracks[0].boxes.id is not None:
+        # Theo dõi phương tiện với các lớp: 0 (car), 1 (motorcycle), 3 (truck), 4 (bus)
+        tracks = model.track(frame, persist=True, conf=conf, device=device, classes=[0, 1, 3, 4], max_det=max_det)
+        if tracks[0].boxes is not None and tracks[0].boxes.id is not None:
             track_ids = tracks[0].boxes.id.int().cpu().tolist()
             for track_id, box in zip(track_ids, tracks[0].boxes.xyxy):
                 x1, y1, x2, y2 = map(int, box)
                 class_id = int(tracks[0].boxes.cls[track_ids.index(track_id)])
-                class_name = model.names[class_id]
+                
+                # Gán tên lớp theo class_id
+                class_name = {0: "car", 1: "motorcycle", 3: "truck", 4: "bus"}.get(class_id, "unknown")
 
                 # Vẽ bounding box
-                cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, line_thickness)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
 
-                # Tính tốc độ
-                #frame = speed_estimator.estimate_speed(frame, tracks)
-
-                # Lấy trung điểm hiện tại
+                # Tính trung điểm
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
-                region_top_y = line_top[0][1]    # y của vạch trên
-                region_bottom_y = line_bottom[0][1]  # y của vạch dưới
 
-                # Debug: In vị trí và ID của từng xe
-                print(f"Track ID {track_id} - {class_name}: ({center_x}, {center_y})")
-
-                if track_id not in prev_positions:
-                    prev_positions[track_id] = (center_x, center_y)
-                    if track_id not in speed_status:
-                        speed_status[track_id] = False  # Ban đầu không đo tốc độ
-                    if track_id not in entry_times:
-                        entry_times[track_id] = None
-                    if track_id not in entry_positions:
-                        entry_positions[track_id] = None
-                    continue
-
-                prev_x, prev_y = prev_positions[track_id]
-                moving_left = prev_x > center_x
-                moving_right = prev_x < center_x
-                direction_up = prev_y > center_y
-                direction_down = prev_y < center_y
-
+                # Đếm xe
                 if track_id not in tracked_status:
                     tracked_status[track_id] = False
-
-                # Đếm khi qua vùng (giữa hai vạch)
-                if not tracked_status[track_id] and region_top_y < center_y < region_bottom_y:
+                if not tracked_status[track_id] and line_top[0][1] < center_y < line_bottom[0][1]:
                     tracked_status[track_id] = True
                     if class_name not in class_counts:
                         class_counts[class_name] = set()
                     class_counts[class_name].add(track_id)
 
-                # Đo tốc độ khi đi qua vạch trên và tiếp tục đến vạch dưới
-                if region_top_y < center_y and entry_times[track_id] is None:
+                # Đo tốc độ
+                if track_id not in prev_positions:
+                    prev_positions[track_id] = (center_x, center_y)
+                    entry_times[track_id] = None
+                    entry_positions[track_id] = None
+                    continue
+
+                prev_x, prev_y = prev_positions[track_id]
+                if line_top[0][1] < center_y and entry_times[track_id] is None:
                     entry_times[track_id] = timestamp
                     entry_positions[track_id] = center_x
-                elif region_bottom_y > center_y and entry_times[track_id] is not None:
+                elif line_bottom[0][1] > center_y and entry_times[track_id] is not None:
                     exit_time = timestamp
                     entry_time = entry_times[track_id]
-                    if exit_time > entry_time:  # Tránh chia cho 0
-                        time_diff_sec = exit_time - entry_time
-                        dist_pixel = abs(center_x - entry_positions[track_id])  # Khoảng cách pixel theo x
-                        speed_pixel_per_sec = dist_pixel / time_diff_sec if time_diff_sec > 0 else 0
-                        current_pixel_to_meter = pixel_to_meter_at_y(
-                            center_y, 
-                            h, 
-                            real_distance_m, 
-                            pixel_distance
-                        )
+                    if exit_time > entry_time:
+                        time_diff = exit_time - entry_time
+                        dist_pixel = abs(center_x - entry_positions[track_id])
+                        speed_pixel_per_sec = dist_pixel / time_diff if time_diff > 0 else 0
+                        current_pixel_to_meter = pixel_to_meter_at_y(center_y, h, real_distance_m, pixel_distance)
                         speed_m_per_sec = speed_pixel_per_sec * current_pixel_to_meter
-                        speed_km_h = speed_m_per_sec * 3.6 if speed_m_per_sec > 0 else 0
+                        speed_km_h = speed_m_per_sec * 3.6
 
-                        # Thêm logic làm mịn tốc độ
                         if track_id not in speed_history:
                             speed_history[track_id] = []
-                            filtered_speeds[track_id] = 0  # Khởi tạo tốc độ lọc
-
+                            filtered_speeds[track_id] = 0
                         speed_history[track_id].append(speed_km_h)
                         if len(speed_history[track_id]) > SMOOTH_FACTOR:
                             speed_history[track_id].pop(0)
-
-                        # Tính trung bình tốc độ
                         current_avg = sum(speed_history[track_id]) / len(speed_history[track_id])
+                        filtered_speeds[track_id] = ALPHA * current_avg + (1 - ALPHA) * filtered_speeds[track_id]
 
-                        # Áp dụng bộ lọc chuyển đổi mượt
-                        if track_id not in filtered_speeds:
-                            filtered_speeds[track_id] = current_avg
-                        else:
-                            filtered_speeds[track_id] = (ALPHA * current_avg + 
-                                                       (1 - ALPHA) * filtered_speeds[track_id])
-
-                        # Hiển thị tốc độ đã được lọc
-                        if region_top_y < center_y < region_bottom_y:
-                            cv2.putText(frame, f"{filtered_speeds[track_id]:.1f} km/h", 
-                                        (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 
-                                        1.0, (255, 255, 255), 4)
-                            print(f"Track ID {track_id} - {class_name}: {filtered_speeds[track_id]:.2f} km/h")
-                    entry_times[track_id] = None  # Đặt lại sau khi ra khỏi vùng
+                        cv2.putText(frame, f"{filtered_speeds[track_id]:.1f} km/h", 
+                                    (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
                 prev_positions[track_id] = (center_x, center_y)
 
-        # Hiển thị số lượng xe đã đếm
-        if class_counts:
-            y_pos = 30
-            for class_name, track_ids in class_counts.items():
-                label = f"{class_name}: {len(track_ids)}"
-                cv2.putText(frame, label, (w - 200, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                y_pos += 30
+        # Hiển thị số lượng xe trên frame
+        y_pos = 30
+        for class_name, track_ids in class_counts.items():
+            cv2.putText(frame, f"{class_name}: {len(track_ids)}", 
+                        (w - 200, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            y_pos += 30
 
         video_writer.write(frame)
 
     cap.release()
     video_writer.release()
-    cv2.destroyAllWindows()
+
+    # Tính kết quả
+    total_speed = sum(filtered_speeds.values()) if filtered_speeds else 0
+    avg_speed = total_speed / len(filtered_speeds) if filtered_speeds else 0
+    total_vehicles = sum(len(ids) for ids in class_counts.values())
+    duration_sec = frame_count / fps if frame_count > 0 else 1
+
+    # Tổng số từng loại xe
+    car_count = len(class_counts.get("car", set()))
+    motorcycle_count = len(class_counts.get("motorcycle", set()))
+    truck_count = len(class_counts.get("truck", set()))
+    bus_count = len(class_counts.get("bus", set()))
+
+    return {
+        "total_vehicles": total_vehicles,
+        "avg_speed": avg_speed,
+        "current_flow": total_vehicles * 3600 / duration_sec,
+        "vehicle_types": {
+            "car": car_count,
+            "motorcycle": motorcycle_count,
+            "truck": truck_count,
+            "bus": bus_count
+        },
+        "output_video": output_filename
+    }
 
 if __name__ == '__main__':
-    vehicle_count_and_speed(
-        video_path='test.mp4',
-        line_color=(0, 0, 255),
-        box_color=(0, 255, 0)
-    )
+     vehicle_count_and_speed("test.mp4")

@@ -7,5 +7,7 @@
     pip install mysql-connector-python
 - Nếu chưa có thư viện cho việc kết nối py với opencv thì:
     pip install opencv-python       
+- Nếu chưa có thư viện flask thì:
+    pip install flask
 
     

@@ -51,7 +51,7 @@ def create_table(): # tạo bảng videos nếu chưa tồn tại
     finally:
         close_connection(connection, cursor)
 
-def insert_video(video_Title, path, upload_Date, orginal_Name, processed_Filename): # thêm video vào bảng videos
+def insert_video(video_Title, path, upload_Date, orginal_Name, processed_Filename): #Lưu dữ liệu của metadata của video gốc.
     conection = get_connection()
     if conection is None:
         return False
@@ -59,7 +59,7 @@ def insert_video(video_Title, path, upload_Date, orginal_Name, processed_Filenam
         cursor = conection.cursor()
         cursor.execute("""
                        INSERT INTO videos (video_Title, path, upload_Date, orginal_Name, processed_Filename)
-                       VALUES (%s, %s, %s, %s, %s)""",
+                       VALUES (%s, %s, %s, %s, NULL)""",
                        (video_Title, path, upload_Date, orginal_Name, processed_Filename))
         conection.commit()
         return True
@@ -70,7 +70,7 @@ def insert_video(video_Title, path, upload_Date, orginal_Name, processed_Filenam
         close_connection(conection, cursor)
 
 
-def get_video_path(video_Title): # lấy đường dẫn video từ bảng videos
+def get_video_path(video_Title): # lấy đường dẫn video gốc từ bảng mysql
     connection = get_connection()
     if connection is None:
         return None
@@ -84,7 +84,21 @@ def get_video_path(video_Title): # lấy đường dẫn video từ bảng video
         return None
     finally:
         close_connection(connection, cursor)
-        
+
+def get_video_info(video_Title): # lấy thông tin video từ bảng mysql
+    connection = get_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT video_Title, processed_Filename FROM videos WHERE video_Title = %s", (video_Title,))
+        return cursor.fetchone()
+    except Error as e:
+        print(f"Error: {e}")
+        return None
+    finally:
+        close_connection(connection, cursor)
+
 def get_all_videos():# lấy danh sách video từ bảng videos
     connection = get_connection()
     if connection is None:
