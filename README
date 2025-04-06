@@ -9,5 +9,7 @@
     pip install opencv-python       
 - Nếu chưa có thư viện flask thì:
     pip install flask
+-Nếu chưa có thư viện flask-cors thì:
+    pip install flask-cors
 
     

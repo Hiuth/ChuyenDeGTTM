@@ -1,15 +1,27 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template
 from werkzeug.utils import secure_filename
 import os
+from flask_cors import CORS
 import uuid
 from datetime import datetime
 from database import get_connection, close_connection, insert_video, get_video_path, get_video_info, get_all_videos, update_processed_filename
 
-app = Flask(__name__)
+# Lấy đường dẫn gốc của project
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Định nghĩa đường dẫn lưu video tuyệt đối
+VIDEO_STORAGE_PATH = os.path.join(BASE_DIR, 'uploads', 'videos')
 
-VIDEO_STORGE_PATH = '/upload/videos' # Đường dẫn lưu video gốc, nếu không có thì tạo mới
-if not os.path.exists(VIDEO_STORGE_PATH):
-    os.makedirs(VIDEO_STORGE_PATH)
+# Đảm bảo thư mục tồn tại
+if not os.path.exists(VIDEO_STORAGE_PATH):
+    os.makedirs(VIDEO_STORAGE_PATH)
+
+app = Flask(__name__, static_folder='../resources/static', template_folder='../resources/templates')
+CORS(app, resources={r"/*": {
+    "origins": ["http://127.0.0.1:5000"],  # Explicitly allow this origin
+    "methods": ["GET", "POST", "OPTIONS"],  # Allow these methods
+    "allow_headers": ["Content-Type","Accept"]  # Allow this header for file uploads
+}})
+
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv'}
 
 def allowed_file(filename): # kiểm tra định dạng file video
@@ -17,7 +29,6 @@ def allowed_file(filename): # kiểm tra định dạng file video
 #'.' in filename: Đảm bảo file có dấu chấm (ví dụ: video.mp4), vì file hợp lệ thường có phần mở rộng.
 #filename.rsplit('.', 1)[1].lower(): Lấy phần mở rộng của file (ví dụ: từ video.mp4 lấy mp4), chuyển thành chữ thường để so sánh.
 #in ALLOWED_EXTENSIONS: Kiểm tra xem phần mở rộng có nằm trong tập hợp ALLOWED_EXTENSIONS không. Trả về True nếu hợp lệ, False nếu không.
-
 def generate_unique_filename(orignal_Filename): # tạo tên file duy nhất để tránh trùng lặp
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S") # Lấy thời gian hiện tại theo định dạng YYYYMMDDHHMMSS
     unique_id = str(uuid.uuid4())[:8] # Tạo một UUID ngẫu nhiên và lấy 8 ký tự đầu tiên
@@ -36,7 +47,7 @@ def upload_and_analyze_video(): # hàm xử lý upload video
     #Tiến hành lưu video gốc vào thư mục VIDEO_STORAGE_PATH
     orignal_filename = secure_filename(file.filename) # Lấy tên file gốc
     new_filename = generate_unique_filename(orignal_filename) # Tạo tên file duy nhất
-    file_path = os.path.join(VIDEO_STORGE_PATH, new_filename) # Tạo đường dẫn lưu file mới
+    file_path = os.path.join(VIDEO_STORAGE_PATH, new_filename) # Tạo đường dẫn lưu file mới
     file.save(file_path) # Lưu file vào đường dẫn đã tạo
     
     #lưu thông tin video vào cơ sở dữ liệu
@@ -45,31 +56,43 @@ def upload_and_analyze_video(): # hàm xử lý upload video
         return jsonify({'error': 'Failed to save video info into database'}), 500
     try:
         from vehicle_count_speed import vehicle_count_and_speed #nhập module vehicle_count_speed
-        result = vehicle_count_and_speed(input_filename=new_filename, output_dir= VIDEO_STORGE_PATH) # gọi hàm vehicle_count_and_speed với đường dẫn video. Kết quả (results) chứa thông tin về video đã xử lý, bao gồm tên file đầu ra.
-        if not update_processed_filename(orignal_filename, result['output_video']):
+        result = vehicle_count_and_speed(input_filename=new_filename, output_dir= VIDEO_STORAGE_PATH) # gọi hàm vehicle_count_and_speed với đường dẫn video. Kết quả (results) chứa thông tin về video đã xử lý, bao gồm tên file đầu ra.
+        print(result)
+        if not update_processed_filename(new_filename, result['output_video']):
             return jsonify({'error': 'Failed to update processed filename in database'}), 500
         return jsonify({
             "message": "Video uploaded and analyzed successfully",
             "Video Title": new_filename,
-            "result": result
+            "results": result
         }),200 # trả về kết quả dưới dạng JSON với mã trạng thái 200 (thành công)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@app.route('/download', methods=['GET']) # định nghĩa route /videos với phương thức GET
+    
+    
+@app.route('/download', methods=['GET'])
 def download_video():
-    fileName= request.args.get('fileName') # lấy tên file từ tham số truy vấn
+    fileName = request.args.get('fileName')
     if not fileName:
         return jsonify({'error': 'No file name provided'}), 400
-    
-    video = get_video_info(fileName)
-    if not video or not video['processed_Filename']:
-        return jsonify({'error': 'Processed video not found'}), 404
-    
-    proccessed_video_path = os.path.join(VIDEO_STORGE_PATH, video['processed_Filename']) # tạo đường dẫn đến video đã xử lý
-    if not os.path.exists(proccessed_video_path):
-        return jsonify({'error': 'Processed video file does not exist'}), 404
-    return send_file(proccessed_video_path, as_attachment=True, download_video_name=video['processed_Filename'],mimetype='video.mp4') # gửi file video đã xử lý về cho client với tên file đã xử lý
 
+    video = get_video_info(fileName)
+    if not video:
+        return jsonify({'error': 'Video not found in database'}), 404
+    if 'processed_Filename' not in video or not video['processed_Filename']:
+        return jsonify({'error': 'Processed video not found'}), 404
+
+    processed_video_path = os.path.join(VIDEO_STORAGE_PATH, video['processed_Filename'])
+    if not os.path.exists(processed_video_path):
+        return jsonify({'error': 'Processed video file does not exist'}), 404
+
+    response = send_file(processed_video_path, as_attachment=True, download_name=video['processed_Filename'])
+    response.headers['Access-Control-Allow-Origin'] = 'http://127.0.0.1:5000'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Accept'
+    return response
+@app.route('/main')
+def index():
+    return render_template('main.html') # render template main.html
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='127.0.0.1', port=5000)

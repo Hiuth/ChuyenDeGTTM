@@ -89,7 +89,7 @@ def vehicle_count_and_speed(
                 class_id = int(tracks[0].boxes.cls[track_ids.index(track_id)])
                 
                 # Gán tên lớp theo class_id
-                class_name = {0: "car", 1: "motorcycle", 3: "truck", 4: "bus"}.get(class_id, "unknown")
+                class_name = {0: "car", 1: "motorcycle", 2: "truck", 3: "bus"}.get(class_id, "unknown")
 
                 # Vẽ bounding box
                 cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)

@@ -39,8 +39,8 @@ def create_table(): # tạo bảng videos nếu chưa tồn tại
                 video_Title VARCHAR(255) NOT NULL,
                 path TEXT,
                 upload_Date DATETIME NOT NULL,
-                orginal_Name VARCHAR(255) NOT NULL,
-                processed_Filename VARCHAR(255) NOT NULL
+                original_Name VARCHAR(255) NOT NULL,
+                processed_Filename VARCHAR(255)
             )
         """)
         connection.commit()
@@ -51,16 +51,16 @@ def create_table(): # tạo bảng videos nếu chưa tồn tại
     finally:
         close_connection(connection, cursor)
 
-def insert_video(video_Title, path, upload_Date, orginal_Name, processed_Filename): #Lưu dữ liệu của metadata của video gốc.
+def insert_video(video_Title, path, upload_Date, original_Name): #Lưu dữ liệu của metadata của video gốc.
     conection = get_connection()
     if conection is None:
         return False
     try:
         cursor = conection.cursor()
         cursor.execute("""
-                       INSERT INTO videos (video_Title, path, upload_Date, orginal_Name, processed_Filename)
+                       INSERT INTO videos (video_Title, path, upload_Date, original_Name, processed_Filename)
                        VALUES (%s, %s, %s, %s, NULL)""",
-                       (video_Title, path, upload_Date, orginal_Name, processed_Filename))
+                       (video_Title, path, upload_Date, original_Name))
         conection.commit()
         return True
     except Error as e:
@@ -85,12 +85,12 @@ def get_video_path(video_Title): # lấy đường dẫn video gốc từ bảng
     finally:
         close_connection(connection, cursor)
 
-def get_video_info(video_Title): # lấy thông tin video từ bảng mysql
+def get_video_info(video_Title):
     connection = get_connection()
     if connection is None:
         return None
     try:
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)  # Trả về dictionary
         cursor.execute("SELECT video_Title, processed_Filename FROM videos WHERE video_Title = %s", (video_Title,))
         return cursor.fetchone()
     except Error as e:
@@ -114,7 +114,7 @@ def get_all_videos():# lấy danh sách video từ bảng videos
     finally:
         close_connection(connection, cursor)
         
-def update_processed_filename(original_Filename, processed_Filename): # cập nhật tên file đã xử lý vào bảng videos
+def update_processed_filename(video_Tiltle, processed_Filename): # cập nhật tên file đã xử lý vào bảng videos
     connection = get_connection()
     if connection is None:
         return False
@@ -123,8 +123,8 @@ def update_processed_filename(original_Filename, processed_Filename): # cập nh
         cursor.execute("""
             UPDATE videos
             SET processed_Filename = %s
-            WHERE original_Filename = %s
-        """, (processed_Filename, original_Filename))
+            WHERE video_Title = %s
+        """, (processed_Filename, video_Tiltle))
         connection.commit()
         return True
     except Error as e:
