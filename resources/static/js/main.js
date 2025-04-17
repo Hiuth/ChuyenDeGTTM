@@ -84,14 +84,14 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisStatus.textContent = 'Đã phân tích';
 
             totalVehicles.textContent = data.results.total_vehicles || '--';
-            avgSpeed.textContent = (data.results.avg_speed || 0).toFixed(1) || '--';
-            currentFlow.textContent = (data.results.current_flow || 0).toFixed(0) || '--';
+            // avgSpeed.textContent = (data.results.avg_speed || 0).toFixed(1) || '--';
+            // currentFlow.textContent = (data.results.current_flow || 0).toFixed(0) || '--';
 
             const vehicleTypes = data.results.vehicle_types || {};
-            motorbikeCount.textContent = vehicleTypes.motorcycle || '--';
-            carCount.textContent = vehicleTypes.car || '--';
-            truckCount.textContent = vehicleTypes.truck || '--';
-            busCount.textContent = vehicleTypes.bus || '--';
+            motorbikeCount.textContent = vehicleTypes.motorcycle || '0';
+            carCount.textContent = vehicleTypes.car || '0';
+            truckCount.textContent = vehicleTypes.truck || '0';
+            busCount.textContent = vehicleTypes.bus || '0';
 
             if (data.results.output_video) {
                 const filename = data["Video Title"];
