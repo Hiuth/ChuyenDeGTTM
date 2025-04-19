@@ -1,38 +1,76 @@
-// script.js
+
 document.addEventListener('DOMContentLoaded', () => {
     const videoUpload = document.getElementById('video-upload');
     const uploadButton = document.querySelector('.upload-button');
     const analyzeButton = document.getElementById('analyze-button');
-    const downloadLink = document.getElementById('download-link');
+    const downloadButton = document.getElementById('download-button');
     const videoPlayer = document.getElementById('traffic-video');
     const videoStatus = document.getElementById('video-status');
     const progressStatus = document.querySelector('.progress-status');
     const totalVehicles = document.getElementById('total-vehicles');
-    const avgSpeed = document.getElementById('avg-speed');
-    const currentFlow = document.getElementById('current-flow');
     const analysisStatus = document.getElementById('analysis-status');
     const motorbikeCount = document.getElementById('motorbike-count');
     const carCount = document.getElementById('car-count');
     const truckCount = document.getElementById('truck-count');
     const busCount = document.getElementById('bus-count');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const errorMessage = document.getElementById('error-message');
+    const alertButton = document.querySelector('.alert-button');
+    const alertModal = document.getElementById('alert-modal');
+    const closeModal = document.querySelector('.close-modal');
 
-    uploadButton.addEventListener('click', () => videoUpload.click());
+    let downloadUrl = ''; // Biến lưu URL tải xuống
+
+    // Hiển thị thông báo lỗi tạm thời
+    const showErrorMessage = (message) => {
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+        setTimeout(() => {
+            errorMessage.style.display = 'none';
+        }, 3000); // Ẩn sau 3 giây
+    };
+
+    // Kiểm tra kích thước file (tối đa 500MB)
+    const isFileSizeValid = (file) => {
+        const maxSizeInBytes = 500 * 1024 * 1024; // 500MB
+        return file.size <= maxSizeInBytes;
+    };
+
+    // Sửa lỗi chọn file: Gắn sự kiện trực tiếp vào uploadButton
+    uploadButton.addEventListener('click', () => {
+        videoUpload.click();
+    });
 
     videoUpload.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
+            // Kiểm tra kích thước file
+            if (!isFileSizeValid(file)) {
+                showErrorMessage('Kích thước video vượt quá 500MB. Vui lòng chọn video nhỏ hơn.');
+                videoUpload.value = ''; // Xóa file đã chọn
+                return;
+            }
+
             videoStatus.textContent = `Đã chọn: ${file.name}`;
             progressStatus.textContent = 'Sẵn sàng phân tích';
             analyzeButton.disabled = false;
 
+            // Thử hiển thị video
             const videoURL = URL.createObjectURL(file);
             const source = videoPlayer.querySelector('source');
             source.src = videoURL;
             videoPlayer.load();
-            videoPlayer.onloadeddata = () => {
-                videoPlayer.style.display = 'block';
-                document.querySelector('.video-placeholder').style.display = 'none';
-                videoPlayer.play().catch(error => console.log('Auto play failed:', error));
+
+            // Luôn hiển thị thẻ video sau khi chọn file
+            videoPlayer.style.display = 'block';
+            document.querySelector('.video-placeholder').style.display = 'none';
+
+            // Xử lý lỗi nếu video không hiển thị được
+            videoPlayer.onerror = () => {
+                showErrorMessage('Trình duyệt không thể hiển thị video này, nhưng bạn vẫn có thể phân tích.');
+                videoPlayer.style.display = 'none';
+                document.querySelector('.video-placeholder').style.display = 'flex';
+                // Không xóa file đã chọn, vẫn cho phép phân tích
             };
         }
     });
@@ -40,13 +78,16 @@ document.addEventListener('DOMContentLoaded', () => {
     analyzeButton.addEventListener('click', () => {
         const file = videoUpload.files[0];
         if (!file) {
-            alert('Vui lòng chọn video trước!');
+            showErrorMessage('Vui lòng chọn video trước!');
             return;
         }
 
         analyzeButton.disabled = true;
         progressStatus.textContent = 'Đang upload và phân tích...';
         analysisStatus.textContent = 'Đang xử lý';
+
+        // Hiển thị overlay loading
+        loadingOverlay.style.display = 'flex';
 
         const formData = new FormData();
         formData.append('video', file);
@@ -98,10 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!filename) {
                     throw new Error('Filename is undefined');
                 }
-                downloadLink.href = `/download?fileName=${encodeURIComponent(filename)}`;
-                downloadLink.download = data.results.output_video;
-                downloadLink.style.display = 'inline-block';
-                alert('Phân tích hoàn tất! Bạn có thể tải video đã xử lý.');
+                downloadUrl = `/download?fileName=${encodeURIComponent(filename)}`;
+                downloadButton.disabled = false; // Bật nút tải xuống khi có video từ server
             }
         })
         .catch(error => {
@@ -114,14 +153,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             progressStatus.textContent = 'Lỗi khi xử lý';
             analysisStatus.textContent = 'Lỗi';
-            alert(`Lỗi: ${error.message}`);
+            showErrorMessage(`Lỗi: ${error.message}`);
         })
         .finally(() => {
+            // Ẩn overlay loading khi phân tích hoàn tất hoặc có lỗi
+            loadingOverlay.style.display = 'none';
             analyzeButton.disabled = false;
         });
     });
 
-    document.querySelector('.alert-button').addEventListener('click', () => {
-        alert('Hệ thống đang trong giai đoạn thử nghiệm. Vui lòng sử dụng cẩn thận và báo cáo lỗi nếu có.');
+    // Xử lý sự kiện tải xuống
+    downloadButton.addEventListener('click', () => {
+        if (downloadUrl) {
+            window.location.href = downloadUrl; // Tải file khi nhấn nút
+        }
+    });
+
+    // Xử lý sự kiện mở/đóng modal
+    alertButton.addEventListener('click', () => {
+        alertModal.style.display = 'flex';
+    });
+
+    closeModal.addEventListener('click', () => {
+        alertModal.style.display = 'none';
+    });
+
+    // Đóng modal khi nhấp ra ngoài
+    window.addEventListener('click', (e) => {
+        if (e.target === alertModal) {
+            alertModal.style.display = 'none';
+        }
     });
 });

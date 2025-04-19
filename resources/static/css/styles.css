@@ -211,6 +211,11 @@ header {
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s ease;
+  margin-left: 10px; /* Tạo khoảng cách giữa các nút */
+}
+
+.control-button:first-child {
+  margin-left: 0; /* Bỏ margin-left cho nút đầu tiên */
 }
 
 .control-button:hover {
@@ -258,6 +263,102 @@ header {
   background-color: #95a5a6;
 }
 
+/* Loading Overlay */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: white;
+  font-size: 18px;
+}
+
+.loading-overlay p {
+  margin-top: 15px;
+}
+
+.spinner {
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #3498db;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  position: relative;
+  text-align: center;
+}
+
+.modal-content p {
+  color: #2c3e50;
+  font-size: 16px;
+}
+
+.modal-content a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.modal-content a:hover {
+  text-decoration: underline;
+}
+
+.close-modal {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  cursor: pointer;
+  color: #7f8c8d;
+}
+
+.close-modal:hover {
+  color: #2c3e50;
+}
+
+/* Error Message */
+.error-message {
+  background-color: #e74c3c;
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 10px;
+  text-align: center;
+}
+
 @media (max-width: 768px) {
   .dashboard {
     grid-template-columns: 1fr;
@@ -293,6 +394,7 @@ header {
   .control-button {
     width: 100%;
     margin-top: 10px;
+    margin-left: 0; /* Bỏ margin-left trên mobile */
     text-align: center;
   }
 }

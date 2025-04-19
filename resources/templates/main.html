@@ -18,6 +18,12 @@
     </header>
 
     <div class="container">
+        <!-- Overlay Loading -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <p>Đang phân tích video, vui lòng chờ...</p>
+        </div>
+
         <div class="upload-section">
             <div class="upload-info">
                 <h3>Nạp video phân tích</h3>
@@ -25,20 +31,31 @@
             </div>
             <div class="upload-actions">
                 <input type="file" id="video-upload" accept="video/*" style="display: none;" />
-                <label for="video-upload" class="upload-button">Chọn file video</label>
+                <button class="upload-button">Chọn file video</button>
             </div>
         </div>
+
+        <!-- Div hiển thị thông báo lỗi tạm thời -->
+        <div id="error-message" class="error-message" style="display: none;"></div>
 
         <div class="alert">
             <div>⚠️ Cảnh báo: Hệ thống đang trong giai đoạn thử nghiệm</div>
             <button class="alert-button">Xem chi tiết</button>
         </div>
 
+        <!-- Modal thông báo -->
+        <div id="alert-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">×</span>
+                <p>Hệ thống đang trong giai đoạn thử nghiệm, nếu có lỗi thì xin vui lòng liên hệ với đội quản trị thông qua email: <a href="mailto:hiuth2004@gmail.com">hiuth2004@gmail.com</a></p>
+            </div>
+        </div>
+
         <div class="dashboard">
             <div class="video-container">
                 <div class="video-player">
                     <video id="traffic-video" controls>
-                        <source src="" type="video/mp4" />
+                        <source src="" />
                         Trình duyệt của bạn không hỗ trợ thẻ video.
                     </video>
                     <div class="video-placeholder">TẢI LÊN VIDEO GIAO THÔNG ĐỂ PHÂN TÍCH</div>
@@ -53,7 +70,7 @@
                         <span id="video-status">Chưa tải video</span>
                     </div>
                     <button class="control-button" id="analyze-button" disabled>Phân tích video</button>
-                    <a class="download-button" id="download-link">Tải video đã xử lý</a>
+                    <button class="control-button" id="download-button" disabled>Tải video đã xử lý</button>
                 </div>
             </div>
 
@@ -89,7 +106,6 @@
             </div>
         </div>
     </div>
-
     <!-- Thêm file script.js -->
     <script src="/static/js/main.js"></script>
 </body>
