@@ -55,12 +55,14 @@ def vehicle_count_and_speed(
         names=names,
         view_img=True,
     )
+# Thêm hàm vẽ vạch đo tốc độ
+
 
     # Biến theo dõi đếm xe
     class_counts = {class_name: 0 for class_name in names.values()}
     tracked_ids = set()  # Lưu các ID đã được đếm
     speeds = []  # Lưu tốc độ của các xe
-
+    
     frame_count = 0
     while cap.isOpened():
         success, frame = cap.read()
@@ -82,7 +84,7 @@ def vehicle_count_and_speed(
                     tracked_ids.add(box_id)
         
         # Hiển thị số lượng lên video
-        y_pos = 30
+        y_pos = 30 #Khởi tạo vị trí y ban đầu để hiển thị text
         for class_name, count in class_counts.items():
             cv2.putText(frame, f"{class_name}: {count}", 
                       (w - 200, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 
